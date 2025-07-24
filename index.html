@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autonomous Code Agent</title>
+  <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+  <style>
+    body {
+        overflow: hidden;
+    }
+    /* For custom scrollbar styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #1e293b; /* slate-800 */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #475569; /* slate-600 */
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #64748b; /* slate-500 */
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/client": "https://esm.sh/react-dom@^19.1.0/client",
+    "marked": "https://esm.sh/marked@^13.0.2",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react/": "https://esm.sh/react@^19.1.0/"
+  }
+}
+</script>
+</head>
+<body class="bg-slate-900 text-slate-300 font-sans">
+  <div id="root"></div>
+
+  <script type="module">
+    import React, { useState, useCallback, useEffect, useRef } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { marked } from 'marked';
+
+    // --- Icon Components ---
+    const BotIcon = ({ className }) => React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: className, fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 1.5 },
+        React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M17.25 6.75h-10.5a.75.75 0 0 0-.75.75v7.5a.75.75 0 0 0 .75.75h10.5a.75.75 0 0 0 .75-.75v-7.5a.75.75 0 0 0-.75-.75z" }),
+        React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M9.75 16.5v1.5a.75.75 0 0 0 .75.75h3a.75.75 0 0 0 .75-.75v-1.5" }),
+        React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M9 11.25h6" }),
+        React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M12 6.75v-1.5a.75.75 0 0 1 .75-.75h1.5a.75.75 0 0 1 .75.75v1.5" }),
+        React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M9.75 6.75v-1.5a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75v1.5" })
+    );
+
+    const SparklesIcon = ({ className }) => React.createElement("svg", { xmlns: "http://www.w3.org/2000/svg", className: className, fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 1.5 },
+        React.createElement("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.5 13.5h.75l.75-1.5.75 1.5h.75v.75h-.75l-.75 1.5-.75-1.5h-.75v-.75z" })
+    );
+    
+    // --- UI Components ---
+    const Header = () => React.createElement("header", { className: "flex-shrink-0 flex items-center p-4 border-b border-slate-700 bg-slate-900/70 backdrop-blur-sm sticky top-0 z-10" },
+        React.createElement(BotIcon, { className: "w-8 h-8 text-cyan-400" }),
+        React.createElement("h1", { className: "ml-3 text-2xl font-bold text-slate-100 tracking-wide" }, "Autonomous Code Agent")
+    );
+
+    const Loader = () => React.createElement("div", { className: "flex flex-col items-center justify-center h-full text-slate-400 p-8" },
+        React.createElement("div", { className: "w-16 h-16 border-4 border-cyan-400 border-t-transparent rounded-full animate-spin mb-4" }),
+        React.createElement("h3", { className: "text-lg font-semibold" }, "Agent Engaged"),
+        React.createElement("p", null, "Analyzing, hypothesizing, and synthesizing solution...")
+    );
+
+    // --- Main App Component ---
+    function App() {
+      const [prompt, setPrompt] = useState('');
+      const [response, setResponse] = useState('');
+      const [isLoading, setIsLoading] = useState(false);
+      const [error, setError] = useState('');
+      const responseContainerRef = useRef(null);
+
+      const handleGenerate = useCallback(async () => {
+        if (!prompt.trim() || isLoading) return;
+
+        setIsLoading(true);
+        setResponse('');
+        setError('');
+
+        try {
+          const res = await fetch('http://localhost:5000/agent_query', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_prompt: prompt })
+          });
+
+          if (!res.ok) {
+              const errorData = await res.json();
+              throw new Error(`HTTP error! Status: ${res.status}. Message: ${errorData.error || res.statusText}`);
+          }
+
+          const data = await res.json();
+          setResponse(data.agent_response); // Assuming backend returns { agent_response: "..." }
+
+        } catch (err) {
+          console.error("Error communicating with backend:", err);
+          setError(`Failed to get response from backend: ${err.message}. Is the server running? Check browser console and backend logs.`);
+        } finally {
+          setIsLoading(false);
+        }
+      }, [prompt, isLoading]);
+      
+      useEffect(() => {
+        if (responseContainerRef.current) {
+            responseContainerRef.current.scrollTop = responseContainerRef.current.scrollHeight;
+        }
+      }, [response]);
+      
+      const renderContent = () => {
+        if (error) {
+            return React.createElement("div", { className: "text-center text-red-400 p-8" }, error);
+        }
+        if (isLoading && !response) {
+            return React.createElement(Loader, null);
+        }
+        if (response) {
+            return React.createElement("div", {
+              className: "prose prose-sm prose-invert max-w-none text-slate-300",
+              dangerouslySetInnerHTML: { __html: marked.parse(response) }
+            });
+        }
+        return React.createElement("div", { className: "text-center text-slate-500 p-8" },
+          React.createElement("h3", { className: "text-xl font-semibold" }, "Awaiting Instructions"),
+          React.createElement("p", null, "Please ensure the backend server is running on port 5000.")
+        );
+      };
+
+      return React.createElement("div", { className: "flex flex-col h-screen bg-slate-900 text-slate-300" },
+        React.createElement(Header, null),
+        React.createElement("main", { className: "flex-grow flex flex-col p-4 gap-4 overflow-hidden" },
+          React.createElement("div", { ref: responseContainerRef, className: "flex-grow bg-slate-800 rounded-lg shadow-lg border border-slate-700 p-6 overflow-y-auto" },
+            renderContent()
+          ),
+          React.createElement("div", { className: "flex-shrink-0 flex flex-col" },
+            React.createElement("textarea", {
+              value: prompt,
+              onChange: (e) => setPrompt(e.target.value),
+              placeholder: "e.g., 'Create a React hook to fetch and cache data from an API...'",
+              className: "w-full p-4 bg-slate-800 border border-slate-700 rounded-lg text-slate-300 resize-none focus:outline-none focus:ring-2 focus:ring-cyan-500 font-mono text-sm leading-relaxed mb-4",
+              disabled: isLoading,
+              rows: 4
+            }),
+            React.createElement("button", {
+              onClick: handleGenerate,
+              disabled: isLoading || !prompt.trim(),
+              className: "w-full flex items-center justify-center px-4 py-3 bg-cyan-600 text-white font-bold rounded-md hover:bg-cyan-500 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-cyan-500"
+            },
+              isLoading ? 
+                React.createElement(React.Fragment, null,
+                    React.createElement("svg", { className: "animate-spin -ml-1 mr-3 h-5 w-5 text-white", xmlns: "http://www.w3.org/2000/svg", fill: "none", viewBox: "0 0 24 24" },
+                        React.createElement("circle", { className: "opacity-25", cx: "12", cy: "12", r="10", stroke="currentColor", strokeWidth="4" }),
+                        React.createElement("path", { className: "opacity-75", fill="currentColor", d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" })
+                    ),
+                    "Agent is thinking..."
+                ) : 
+                React.createElement(React.Fragment, null,
+                    React.createElement(SparklesIcon, { className: "w-5 h-5 mr-2" }),
+                    "Engage Agent"
+                )
+            )
+          )
+        )
+      );
+    }
+
+    const container = document.getElementById('root');
+    const root = createRoot(container);
+    root.render(React.createElement(React.StrictMode, null, React.createElement(App, null)));
+  </script>
+</body>
+</html>
