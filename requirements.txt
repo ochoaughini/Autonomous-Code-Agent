@@ -1,0 +1,6 @@
+Flask
+Flask-Cors
+torch
+transformers
+numpy
+pyyaml # For memory_system config
