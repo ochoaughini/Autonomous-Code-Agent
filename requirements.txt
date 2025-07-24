@@ -1,6 +1,8 @@
 Flask
-Flask-Cors
-torch
 transformers
+torch
 numpy
-pyyaml # For memory_system config
+sentence-transformers
+pyyaml
+faiss-cpu
+python-dotenv
